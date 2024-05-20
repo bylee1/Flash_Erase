@@ -33,6 +33,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define FLASH_USER_START_ADDR   ADDR_FLASH_PAGE_16   /* Start @ of user Flash area */
+#define FLASH_USER_END_ADDR    0x08008800  /* End @ of user Flash area */
 
 /* USER CODE END PD */
 
@@ -44,11 +46,21 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+static FLASH_EraseInitTypeDef EraseInitStruct;
+
+#define DATA_64                 ((uint64_t)0x1234567812345678)
+#define DATA_32                 ((uint32_t)0x12345678)
+
+uint32_t FirstPage = 0, NbOfPages = 0, BankNumber = 0;
+uint32_t Address = 0, PAGEError = 0;
+__IO uint32_t data32 = 0 , MemoryProgramStatus = 0;
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+static uint32_t GetPage(uint32_t Address);
+static uint32_t GetBank(uint32_t Address);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -88,6 +100,60 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+
+  // 플래시 메모리 Unlock
+  HAL_FLASH_Unlock();
+
+  /* Get the 1st page to erase */
+  FirstPage = GetPage(FLASH_USER_START_ADDR);
+
+  /* Get the number of pages to erase from 1st page */
+  NbOfPages = GetPage(FLASH_USER_END_ADDR) - FirstPage + 1;
+
+  /* Get the bank */
+  BankNumber = GetBank(FLASH_USER_START_ADDR);
+
+  /* Fill EraseInit structure*/
+  EraseInitStruct.TypeErase   = FLASH_TYPEERASE_PAGES;
+  EraseInitStruct.Banks       = BankNumber;
+  EraseInitStruct.Page        = FirstPage;
+  EraseInitStruct.NbPages     = NbOfPages;
+
+  if (HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError) != HAL_OK)
+  {
+    /*
+      Error occurred while page erase.
+      User can add here some code to deal with this error.
+      PAGEError will contain the faulty page and then to know the code error on this page,
+      user can call function 'HAL_FLASH_GetError()'
+    */
+
+
+  }
+
+  // 다시 Address를 시작주소로 보낸다
+    Address = FLASH_USER_START_ADDR;
+
+
+    while (Address < FLASH_USER_END_ADDR)
+     {
+       if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, Address, DATA_64) == HAL_OK)
+       {
+         Address = Address + 8;
+       }
+      else
+       {
+         /* Error occurred while writing data in Flash memory.
+            User can add here some code to deal with this error */
+
+       }
+     }
+
+
+    /* Lock the Flash to disable the flash control register access (recommended
+       to protect the FLASH memory against possible unwanted operation) *********/
+    HAL_FLASH_Lock();
+
 
   /* USER CODE END 2 */
 
@@ -157,6 +223,33 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+static uint32_t GetPage(uint32_t Addr)
+{
+  uint32_t page = 0;
+
+  if (Addr < (FLASH_BASE + FLASH_BANK_SIZE))
+  {
+    /* Bank 1 */
+    page = (Addr - FLASH_BASE) / FLASH_PAGE_SIZE;
+  }
+  else
+  {
+    /* Bank 2 */
+    page = (Addr - (FLASH_BASE + FLASH_BANK_SIZE)) / FLASH_PAGE_SIZE;
+  }
+
+  return page;
+}
+
+/**
+  * @brief  Gets the bank of a given address
+  * @param  Addr: Address of the FLASH Memory
+  * @retval The bank of a given address
+  */
+static uint32_t GetBank(uint32_t Addr)
+{
+  return FLASH_BANK_1;
+}
 
 /* USER CODE END 4 */
 
